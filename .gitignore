@@ -1,0 +1,15 @@
+node_modules
+dist
+workspace/*
+!workspace/.gitkeep
+.env
+.DS_Store
+*.log
+
+# Python transcription venv + caches
+.venv
+__pycache__/
+*.pyc
+
+# TS incremental build cache
+*.tsbuildinfo

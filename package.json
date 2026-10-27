@@ -1,0 +1,24 @@
+{
+  "name": "reelay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Turn long videos into short, captioned vertical clips.",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm --workspace server run dev",
+    "dev:web": "npm --workspace web run dev",
+    "build": "npm --workspace web run build && npm --workspace server run build",
+    "start": "npm --workspace server run start",
+    "doctor": "node scripts/doctor.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "9.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
