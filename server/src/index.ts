@@ -11,6 +11,23 @@ app.use(express.json({ limit: "1mb" }));
 
 fs.mkdirSync(config.workspaceDir, { recursive: true });
 
+// Hosts like Hugging Face Spaces expose secrets as env vars, not files — so
+// accept yt-dlp cookies as base64 and materialize them to a file yt-dlp can use.
+if (process.env.YTDLP_COOKIES_B64 && !process.env.YTDLP_COOKIES) {
+  try {
+    const cookiePath = path.join(config.workspaceDir, ".cookies.txt");
+    fs.writeFileSync(
+      cookiePath,
+      Buffer.from(process.env.YTDLP_COOKIES_B64, "base64").toString("utf-8"),
+      { mode: 0o600 },
+    );
+    process.env.YTDLP_COOKIES = cookiePath;
+    console.log("Loaded yt-dlp cookies from YTDLP_COOKIES_B64.");
+  } catch (err) {
+    console.warn("Failed to decode YTDLP_COOKIES_B64:", (err as Error).message);
+  }
+}
+
 app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,

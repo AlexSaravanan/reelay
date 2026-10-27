@@ -1,8 +1,25 @@
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { config } from "../config.js";
 import type { VideoQuality } from "../types.js";
-import { run } from "./proc.js";
+import { CancelledError, run } from "./proc.js";
+
+/**
+ * yt-dlp auth flags for sites (YouTube especially) that demand a logged-in
+ * session. Resolved per call so a cookies file written at startup is picked up.
+ *   - YTDLP_COOKIES_FROM_BROWSER=chrome|safari|firefox… (local machines only)
+ *   - YTDLP_COOKIES=/path/to/cookies.txt (Netscape format; works on servers)
+ */
+function authArgs(): string[] {
+  const fromBrowser = process.env.YTDLP_COOKIES_FROM_BROWSER?.trim();
+  if (fromBrowser) return ["--cookies-from-browser", fromBrowser];
+  const cookieFile = process.env.YTDLP_COOKIES?.trim();
+  if (cookieFile && existsSync(cookieFile)) return ["--cookies", cookieFile];
+  return [];
+}
+
+const BOT_CHECK = /sign in to confirm|not a bot|use --cookies/i;
 
 export interface IngestResult {
   videoPath: string;
@@ -46,10 +63,13 @@ export async function ingest(
   const outTemplate = path.join(dir, "source.%(ext)s");
   let title = "video";
 
+  const auth = authArgs();
+
   // Grab the title first (cheap metadata call).
   try {
     const meta = await run(config.ytdlpBin, [
       "--no-warnings",
+      ...auth,
       "--print",
       "%(title)s",
       "--skip-download",
@@ -81,25 +101,39 @@ export async function ingest(
     }
   };
 
-  await run(
-    config.ytdlpBin,
-    [
-      "--no-warnings",
-      "--no-playlist",
-      "--newline", // one progress update per line instead of \r overwrites
-      "--progress",
-      // Cap resolution per the chosen quality tier (applied to both dimensions
-      // so it holds for landscape and vertical sources alike).
-      "-f",
-      formatFor(quality),
-      "--merge-output-format",
-      "mp4",
-      "-o",
-      outTemplate,
-      source.value,
-    ],
-    { signal, onStdout: onChunk, onStderr: onChunk },
-  );
+  try {
+    await run(
+      config.ytdlpBin,
+      [
+        "--no-warnings",
+        "--no-playlist",
+        "--newline", // one progress update per line instead of \r overwrites
+        "--progress",
+        ...auth,
+        // Cap resolution per the chosen quality tier (applied to both dimensions
+        // so it holds for landscape and vertical sources alike).
+        "-f",
+        formatFor(quality),
+        "--merge-output-format",
+        "mp4",
+        "-o",
+        outTemplate,
+        source.value,
+      ],
+      { signal, onStdout: onChunk, onStderr: onChunk },
+    );
+  } catch (err) {
+    if (err instanceof CancelledError) throw err;
+    if (BOT_CHECK.test((err as Error).message) && auth.length === 0) {
+      throw new Error(
+        "YouTube blocked this download with a bot check. Supply cookies from a " +
+          "logged-in session: set YTDLP_COOKIES to a Netscape cookies.txt file " +
+          "(best for servers), or YTDLP_COOKIES_FROM_BROWSER=chrome when running " +
+          "locally. See the README section “Downloads blocked by YouTube”.",
+      );
+    }
+    throw err;
+  }
 
   // yt-dlp wrote source.<ext>; find it.
   const files = await fs.readdir(dir);

@@ -79,6 +79,33 @@ See [.env.example](.env.example). Highlights:
 | `ANTHROPIC_MODEL`   | `claude-opus-5-5`  | Model used when a key is set              |
 | `WORKSPACE_DIR`     | `./workspace`      | Where videos, transcripts and clips live  |
 
+## Downloads blocked by YouTube
+
+YouTube increasingly answers `yt-dlp` with **“Sign in to confirm you’re not a
+bot.”** — almost always from servers/datacenter IPs (so expect it on Hugging
+Face Spaces), and sometimes from home connections. The fix is to give `yt-dlp`
+cookies from a logged-in session:
+
+- **Local machine** — pull cookies straight from your browser:
+  ```bash
+  YTDLP_COOKIES_FROM_BROWSER=chrome   # or safari, firefox, edge, brave
+  ```
+- **Server (file)** — export a Netscape `cookies.txt` (use a browser “Get
+  cookies.txt” extension while logged into YouTube), then:
+  ```bash
+  YTDLP_COOKIES=/path/to/cookies.txt
+  ```
+- **Hugging Face Spaces / env-only hosts** — base64 the file and set it as a
+  **secret** (Settings → Variables and secrets); it’s written to a file at boot:
+  ```bash
+  base64 -i cookies.txt        # paste the output as the secret's value
+  # Secret name: YTDLP_COOKIES_B64
+  ```
+
+Use a throwaway account, and **never commit `cookies.txt`** — it grants access
+to that account. On a *public* Space, prefer the base64 secret over a committed
+file so the cookies aren’t exposed in the repo.
+
 ## Project layout
 
 ```
