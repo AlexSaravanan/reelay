@@ -1,5 +1,6 @@
 import type {
   AspectRatio,
+  Clip,
   Health,
   Job,
   JobStage,
@@ -34,6 +35,24 @@ export async function cancelJob(id: string): Promise<Job> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error ?? `Cancel failed (${res.status})`);
+  }
+  return res.json();
+}
+
+/** Re-render a single clip over a new [start, end] range (seconds). */
+export async function retrimClip(
+  jobId: string,
+  clipId: string,
+  range: { start: number; end: number; title?: string },
+): Promise<Clip> {
+  const res = await fetch(`/api/jobs/${jobId}/clips/${clipId}/retrim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(range),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Re-trim failed (${res.status})`);
   }
   return res.json();
 }

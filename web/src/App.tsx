@@ -92,6 +92,16 @@ export function App() {
     }
   };
 
+  const handleClipUpdate = (jobId: string, clip: Job["clips"][number]) => {
+    setJobs((prev) =>
+      prev.map((j) =>
+        j.id === jobId
+          ? { ...j, clips: j.clips.map((c) => (c.id === clip.id ? clip : c)) }
+          : j,
+      ),
+    );
+  };
+
   const active = jobs.find((j) => j.id === activeId) ?? null;
 
   return (
@@ -111,7 +121,11 @@ export function App() {
 
         <div>
           {active ? (
-            <ActiveJob job={active} onCancel={handleCancel} />
+            <ActiveJob
+              job={active}
+              onCancel={handleCancel}
+              onClipUpdate={handleClipUpdate}
+            />
           ) : (
             <Empty />
           )}
@@ -165,9 +179,11 @@ const RUNNING_STAGES = new Set<Job["stage"]>([
 function ActiveJob({
   job,
   onCancel,
+  onClipUpdate,
 }: {
   job: Job;
   onCancel: (id: string) => void;
+  onClipUpdate: (jobId: string, clip: Job["clips"][number]) => void;
 }) {
   const running = RUNNING_STAGES.has(job.stage);
   return (
@@ -198,12 +214,20 @@ function ActiveJob({
 
       <JobProgress job={job} />
 
-      {job.clips.length > 0 && <ClipGallery job={job} />}
+      {job.clips.length > 0 && (
+        <ClipGallery job={job} onClipUpdate={onClipUpdate} />
+      )}
     </div>
   );
 }
 
-function ClipGallery({ job }: { job: Job }) {
+function ClipGallery({
+  job,
+  onClipUpdate,
+}: {
+  job: Job;
+  onClipUpdate: (jobId: string, clip: Job["clips"][number]) => void;
+}) {
   // Preview clips, pick the ones you like, then download just those (or all).
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -275,6 +299,7 @@ function ClipGallery({ job }: { job: Job }) {
             clip={clip}
             selected={selected.has(clip.id)}
             onToggleSelect={toggle}
+            onUpdate={(c) => onClipUpdate(job.id, c)}
           />
         ))}
       </div>

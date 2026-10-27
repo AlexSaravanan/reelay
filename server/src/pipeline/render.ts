@@ -46,77 +46,129 @@ export async function renderClips(
 
   for (let i = 0; i < highlights.length; i++) {
     const h = highlights[i];
-    const base = `clip-${i + 1}`;
-    const outFile = path.join(clipsDir, `${base}.mp4`);
-    const thumbFile = path.join(clipsDir, `${base}.jpg`);
-
     onProgress(
       (i / highlights.length) * 100,
       `Rendering clip ${i + 1} of ${highlights.length}…`,
     );
 
-    // Caption file (relative times) — optional.
-    let assPath: string | null = null;
-    if (canCaption) {
-      const p = path.join(clipsDir, `${base}.ass`);
-      const ok = await writeClipCaptions(
-        transcript,
-        h.start,
-        h.end,
-        p,
-        frame.w,
-        frame.h,
-      );
-      if (ok) assPath = p;
-    }
-
-    const vf = buildVideoFilter(info.width, info.height, frame, assPath);
-    const duration = h.end - h.start;
-
-    await run(config.ffmpegBin, [
-      "-y",
-      // Seek before input for speed, then re-seek precisely.
-      "-ss",
-      h.start.toFixed(3),
-      "-i",
+    const out = await renderOne(
       videoPath,
-      "-t",
-      duration.toFixed(3),
-      "-vf",
-      vf,
-      "-c:v",
-      "libx264",
-      "-preset",
-      "veryfast",
-      "-crf",
-      "20",
-      "-c:a",
-      "aac",
-      "-b:a",
-      "128k",
-      "-movflags",
-      "+faststart",
-      outFile,
-    ], { signal });
-
-    // Thumbnail from the middle of the clip.
-    await run(
-      config.ffmpegBin,
-      ["-y", "-ss", (duration / 2).toFixed(3), "-i", outFile, "-frames:v", "1", "-q:v", "3", thumbFile],
-      { signal },
+      info,
+      clipsDir,
+      `clip-${i + 1}`,
+      transcript,
+      h.start,
+      h.end,
+      canCaption,
+      frame,
+      signal,
     );
-
-    clips.push({
-      ...h,
-      id: nanoid(8),
-      file: `clips/${base}.mp4`,
-      thumbnail: `clips/${base}.jpg`,
-      durationSec: Math.round(duration),
-    });
+    clips.push({ ...h, id: nanoid(8), ...out });
   }
 
   onProgress(100, "Clips ready.");
   return clips;
+}
+
+/**
+ * Re-render a single clip over a new [start, end] range — used when the user
+ * nudges a clip's in/out points. A fresh output filename is used so the browser
+ * never shows a stale cached video/thumbnail.
+ */
+export async function renderClipRange(
+  videoPath: string,
+  dir: string,
+  transcript: Transcript,
+  start: number,
+  end: number,
+  captionsOn: boolean,
+  aspect: AspectRatio,
+  signal?: AbortSignal,
+): Promise<{ file: string; thumbnail: string; durationSec: number }> {
+  const clipsDir = path.join(dir, "clips");
+  await fs.mkdir(clipsDir, { recursive: true });
+  const frame = FRAME[aspect];
+  const info = await probe(videoPath);
+  const canCaption = captionsOn && (await hasSubtitlesFilter());
+  return renderOne(
+    videoPath,
+    info,
+    clipsDir,
+    `clip-${nanoid(8)}`,
+    transcript,
+    start,
+    end,
+    canCaption,
+    frame,
+    signal,
+  );
+}
+
+/** Render one clip (video + thumbnail) for [start, end] into `base`.{mp4,jpg}. */
+async function renderOne(
+  videoPath: string,
+  info: { width: number; height: number },
+  clipsDir: string,
+  base: string,
+  transcript: Transcript,
+  start: number,
+  end: number,
+  canCaption: boolean,
+  frame: { w: number; h: number },
+  signal?: AbortSignal,
+): Promise<{ file: string; thumbnail: string; durationSec: number }> {
+  const outFile = path.join(clipsDir, `${base}.mp4`);
+  const thumbFile = path.join(clipsDir, `${base}.jpg`);
+
+  // Caption file (relative times) — optional.
+  let assPath: string | null = null;
+  if (canCaption) {
+    const p = path.join(clipsDir, `${base}.ass`);
+    const ok = await writeClipCaptions(transcript, start, end, p, frame.w, frame.h);
+    if (ok) assPath = p;
+  }
+
+  const vf = buildVideoFilter(info.width, info.height, frame, assPath);
+  const duration = end - start;
+
+  await run(config.ffmpegBin, [
+    "-y",
+    // Seek before input for speed, then re-seek precisely.
+    "-ss",
+    start.toFixed(3),
+    "-i",
+    videoPath,
+    "-t",
+    duration.toFixed(3),
+    "-vf",
+    vf,
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "20",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "128k",
+    "-movflags",
+    "+faststart",
+    outFile,
+  ], { signal });
+
+  // Thumbnail from the middle of the clip.
+  await run(
+    config.ffmpegBin,
+    ["-y", "-ss", (duration / 2).toFixed(3), "-i", outFile, "-frames:v", "1", "-q:v", "3", thumbFile],
+    { signal },
+  );
+
+  return {
+    file: `clips/${base}.mp4`,
+    thumbnail: `clips/${base}.jpg`,
+    durationSec: Math.round(duration),
+  };
 }
 
 /**

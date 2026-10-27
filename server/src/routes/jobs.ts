@@ -4,6 +4,8 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import { config, jobDir } from "../config.js";
 import { jobs } from "../jobs.js";
+import { probe } from "../pipeline/ffmpeg.js";
+import { renderClipRange } from "../pipeline/render.js";
 import { runJob } from "../pipeline/run.js";
 import type { AspectRatio, Job, JobOptions, VideoQuality } from "../types.js";
 
@@ -87,6 +89,72 @@ jobsRouter.post("/:id/cancel", (req, res) => {
       .json({ error: "Job already finished; nothing to cancel." });
   }
   res.json(publicJob(jobs.get(req.params.id)!));
+});
+
+// POST /api/jobs/:id/clips/:clipId/retrim — re-render one clip over a new
+// [start, end] range (seconds, absolute in the source video).
+jobsRouter.post("/:id/clips/:clipId/retrim", async (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: "Job not found." });
+  const clip = job.clips.find((c) => c.id === req.params.clipId);
+  if (!clip) return res.status(404).json({ error: "Clip not found." });
+  if (!job.transcript) {
+    return res
+      .status(409)
+      .json({ error: "This job's data is no longer available; start a new job." });
+  }
+
+  const start = Number(req.body?.start);
+  const end = Number(req.body?.end);
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    start < 0 ||
+    end <= start
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Provide start and end seconds with end greater than start." });
+  }
+
+  // Locate the downloaded source video.
+  const dir = jobDir(job.id);
+  let source: string | undefined;
+  try {
+    source = fs.readdirSync(dir).find((f) => f.startsWith("source."));
+  } catch {
+    // fall through to the missing-source error below
+  }
+  if (!source) {
+    return res.status(409).json({ error: "Source video is no longer available." });
+  }
+  const videoPath = path.join(dir, source);
+
+  // Clamp the end to the real video duration so we never seek past it.
+  const info = await probe(videoPath);
+  const end2 = info.duration ? Math.min(end, info.duration) : end;
+  if (end2 - start < 0.5) {
+    return res.status(400).json({ error: "Range is too short or outside the video." });
+  }
+
+  try {
+    const out = await renderClipRange(
+      videoPath,
+      dir,
+      job.transcript,
+      start,
+      end2,
+      job.options.captions,
+      job.options.aspect,
+    );
+    Object.assign(clip, { start, end: end2, ...out });
+    const title = req.body?.title;
+    if (typeof title === "string" && title.trim()) clip.title = title.trim();
+    jobs.update(job.id, { clips: job.clips });
+    res.json(clip);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 // GET /api/jobs/:id/events — Server-Sent Events stream of progress.

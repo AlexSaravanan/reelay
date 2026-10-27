@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fileUrl } from "../api.ts";
+import { fileUrl, retrimClip } from "../api.ts";
 import type { Clip } from "../types.ts";
 
 export function ClipCard({
@@ -7,13 +7,52 @@ export function ClipCard({
   clip,
   selected,
   onToggleSelect,
+  onUpdate,
 }: {
   jobId: string;
   clip: Clip;
   selected: boolean;
   onToggleSelect: (id: string) => void;
+  onUpdate: (clip: Clip) => void;
 }) {
   const [playing, setPlaying] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [startStr, setStartStr] = useState(fmt(clip.start));
+  const [endStr, setEndStr] = useState(fmt(clip.end));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const openEditor = () => {
+    setStartStr(fmt(clip.start));
+    setEndStr(fmt(clip.end));
+    setErr(null);
+    setEditing(true);
+  };
+
+  const apply = async () => {
+    const start = parseTime(startStr);
+    const end = parseTime(endStr);
+    if (start === null || end === null) {
+      setErr("Use m:ss (e.g. 1:33) or seconds.");
+      return;
+    }
+    if (end - start < 0.5) {
+      setErr("End must be after start.");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const updated = await retrimClip(jobId, clip.id, { start, end });
+      onUpdate(updated);
+      setPlaying(false); // force the new render to load
+      setEditing(false);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -77,20 +116,85 @@ export function ClipCard({
         {clip.reason && (
           <p className="mt-1 line-clamp-2 text-xs text-white/50">{clip.reason}</p>
         )}
-        <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs tabular-nums text-white/40">
-            {fmt(clip.start)} → {fmt(clip.end)}
-          </span>
-          <a
-            href={fileUrl(jobId, clip.file, true)}
-            className="rounded-lg bg-white/10 px-3 py-1 text-xs font-medium hover:bg-white/20"
-          >
-            Download
-          </a>
-        </div>
+        {editing ? (
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={startStr}
+                onChange={(e) => setStartStr(e.target.value)}
+                placeholder="0:06"
+                className="w-16 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-center text-xs tabular-nums outline-none focus:border-violet-400/60"
+              />
+              <span className="text-white/40">→</span>
+              <input
+                value={endStr}
+                onChange={(e) => setEndStr(e.target.value)}
+                placeholder="1:33"
+                className="w-16 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-center text-xs tabular-nums outline-none focus:border-violet-400/60"
+              />
+              <div className="ml-auto flex gap-1">
+                <button
+                  onClick={apply}
+                  disabled={saving}
+                  className="rounded-md bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+                >
+                  {saving ? "…" : "Apply"}
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={saving}
+                  className="rounded-md border border-white/10 px-2.5 py-1 text-xs text-white/70 hover:bg-white/10 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+            {saving && (
+              <p className="text-xs text-white/40">Re-rendering clip…</p>
+            )}
+            {err && <p className="text-xs text-red-300">{err}</p>}
+          </div>
+        ) : (
+          <div className="mt-3 flex items-center justify-between">
+            <button
+              onClick={openEditor}
+              title="Edit start / end times"
+              className="group/edit flex items-center gap-1 text-xs tabular-nums text-white/40 hover:text-white/80"
+            >
+              {fmt(clip.start)} → {fmt(clip.end)}
+              <span className="opacity-0 transition group-hover/edit:opacity-100">
+                ✎
+              </span>
+            </button>
+            <a
+              href={fileUrl(jobId, clip.file, true)}
+              className="rounded-lg bg-white/10 px-3 py-1 text-xs font-medium hover:bg-white/20"
+            >
+              Download
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
+}
+
+/** Parse "m:ss", "m:ss.s" or a plain seconds number to seconds; null if bad. */
+function parseTime(input: string): number | null {
+  const s = input.trim();
+  if (!s) return null;
+  if (s.includes(":")) {
+    const parts = s.split(":");
+    if (parts.length !== 2) return null;
+    const m = Number(parts[0]);
+    const sec = Number(parts[1]);
+    if (!Number.isFinite(m) || !Number.isFinite(sec) || sec < 0 || sec >= 60) {
+      return null;
+    }
+    return m * 60 + sec;
+  }
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
 function fmt(sec: number): string {
