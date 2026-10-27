@@ -1,0 +1,13 @@
+# Keep the build context small and avoid overwriting image-built artifacts.
+.git
+node_modules
+**/node_modules
+.venv
+dist
+**/dist
+web/dist
+workspace
+*.tsbuildinfo
+.env
+.DS_Store
+*.log

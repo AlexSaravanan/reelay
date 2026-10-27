@@ -1,3 +1,13 @@
+---
+title: Reelay
+emoji: 🎬
+colorFrom: purple
+colorTo: pink
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Reelay
 
 Turn long videos into short, captioned vertical clips — a self-hosted,
