@@ -3,6 +3,7 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.js";
+import { scriptProvider } from "./pipeline/explainer.js";
 import { ttsAvailable } from "./pipeline/tts.js";
 import { jobsRouter } from "./routes/jobs.js";
 
@@ -35,8 +36,8 @@ app.get("/api/health", (_req, res) => {
     whisperModel: config.whisperModel,
     selector: config.anthropicApiKey ? "claude" : "heuristic",
     model: config.anthropicApiKey ? config.anthropicModel : null,
-    // Explainer mode needs both a Claude key (web-researched script) and Piper.
-    explainer: Boolean(config.anthropicApiKey) && ttsAvailable(),
+    // Explainer mode needs a script LLM (Claude or Gemini) and the Piper voice.
+    explainer: scriptProvider() !== null && ttsAvailable(),
   });
 });
 

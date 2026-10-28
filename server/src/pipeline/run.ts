@@ -1,7 +1,7 @@
 import { config, jobDir } from "../config.js";
 import { jobs } from "../jobs.js";
 import type { Job } from "../types.js";
-import { writeExplainerScript } from "./explainer.js";
+import { scriptProvider, writeExplainerScript } from "./explainer.js";
 import { probe } from "./ffmpeg.js";
 import { selectHighlights } from "./highlights.js";
 import { ingest } from "./ingest.js";
@@ -128,10 +128,10 @@ async function runExplainer(
   videoDuration: number,
   signal: AbortSignal,
 ): Promise<void> {
-  if (!config.anthropicApiKey) {
+  if (!scriptProvider()) {
     throw new Error(
-      "AI explainer mode needs an ANTHROPIC_API_KEY (for the web-researched " +
-        "script). Set it and try again, or use clip mode.",
+      "AI explainer mode needs a script key — ANTHROPIC_API_KEY (Claude) or " +
+        "GEMINI_API_KEY (free Gemini, with web search). Set one, or use clip mode.",
     );
   }
   if (!ttsAvailable()) {

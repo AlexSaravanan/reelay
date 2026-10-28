@@ -56,13 +56,18 @@ if (existsSync(piper) && existsSync(voice)) {
   console.log("  MISS piper (TTS)       run: scripts/setup-python.sh");
 }
 
+const scriptKey = process.env.ANTHROPIC_API_KEY
+  ? "claude"
+  : process.env.GEMINI_API_KEY
+    ? "gemini (free)"
+    : null;
 console.log(
   `\n  AI selector:  ${process.env.ANTHROPIC_API_KEY ? "claude (key set)" : "heuristic (set ANTHROPIC_API_KEY for Claude)"}`,
 );
 console.log(
   `  Explainer:    ${
-    process.env.ANTHROPIC_API_KEY && existsSync(piper) && existsSync(voice)
-      ? "ready"
-      : "needs ANTHROPIC_API_KEY + Piper voice"
+    scriptKey && existsSync(piper) && existsSync(voice)
+      ? `ready (script: ${scriptKey})`
+      : "needs a script key (ANTHROPIC_API_KEY or GEMINI_API_KEY) + Piper voice"
   }`,
 );

@@ -141,8 +141,9 @@ export function NewJobForm({ onSubmit, busy, explainerReady }: Props) {
           researched from the web. Output is capped at 10 minutes.
           {!explainerReady && (
             <p className="mt-2 text-amber-300">
-              ⚠️ Needs <code>ANTHROPIC_API_KEY</code> and the Piper voice
-              installed on the server — this job will fail until both are set.
+              ⚠️ Needs a script key (<code>ANTHROPIC_API_KEY</code>, or free{" "}
+              <code>GEMINI_API_KEY</code>) and the Piper voice on the server —
+              this job will fail until both are set.
             </p>
           )}
         </div>

@@ -76,10 +76,13 @@ live. Clips can be previewed and downloaded from the browser.
   (≤10 min) video. Pick it with the mode toggle in the form.
 
   Explainer mode needs two things on the server:
-  - **`ANTHROPIC_API_KEY`** — Claude writes the script and runs the web search.
+  - **A script LLM** — either **`ANTHROPIC_API_KEY`** (Claude, with web search)
+    or, for free, **`GEMINI_API_KEY`** (Google Gemini free tier, with Search
+    grounding — get one at https://aistudio.google.com/apikey). Claude is used
+    when both are set. If web search/grounding isn't available, it falls back to
+    the model's own knowledge.
   - **Piper voice** — the local, offline TTS voice, installed by
-    `scripts/setup-python.sh` (or baked into the Docker image). If the web
-    search tool isn't available, it falls back to Claude's own knowledge.
+    `scripts/setup-python.sh` (or baked into the Docker image).
 
   `npm run doctor` prints whether explainer mode is ready.
 

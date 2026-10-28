@@ -1,9 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.js";
 
+export type ScriptProvider = "claude" | "gemini";
+
+/** Which LLM (if any) can write the explainer script, given the configured keys. */
+export function scriptProvider(): ScriptProvider | null {
+  if (config.anthropicApiKey) return "claude";
+  if (config.geminiApiKey) return "gemini";
+  return null;
+}
+
 /**
  * Write a spoken-word explainer narration about `topic`, researched from the
- * web via Claude's web_search tool, sized to be spoken within ~targetSeconds.
+ * web, sized to be spoken within ~targetSeconds. Uses Claude (web_search) when
+ * an Anthropic key is set, otherwise Google Gemini (Search grounding).
  * Returns plain narration prose (no markdown, no stage directions).
  */
 export async function writeExplainerScript(
@@ -11,8 +21,6 @@ export async function writeExplainerScript(
   targetSeconds: number,
   signal?: AbortSignal,
 ): Promise<string> {
-  const client = new Anthropic({ apiKey: config.anthropicApiKey });
-
   // ~140 words/min spoken; aim a little under the video length so the voiceover
   // fits without being cut off.
   const words = Math.max(60, Math.round((targetSeconds / 60) * 140 * 0.9));
@@ -21,7 +29,6 @@ export async function writeExplainerScript(
     "You are a documentary narrator and scriptwriter.",
     "Write a clear, engaging voiceover that EXPLAINS the given topic to a general",
     "audience, grounded in accurate, up-to-date facts you find on the web.",
-    "Use the web_search tool to check facts before writing.",
     "Output ONLY the words to be spoken — natural flowing prose, first thing to",
     "last. No markdown, no headings, no bullet points, no camera/stage directions,",
     "no speaker labels, no citations or URLs in the text.",
@@ -38,24 +45,17 @@ export async function writeExplainerScript(
     "with a short takeaway. Return only the spoken words.",
   ].join("\n");
 
-  // Prefer server-side web search for current facts; if the tool isn't
-  // available for this account/model, fall back to the model's own knowledge so
-  // the explainer still gets made.
-  const webSearchTool = {
-    type: "web_search_20260209",
-    name: "web_search",
-    max_uses: 6,
-  } as unknown as Anthropic.Tool;
-
+  const provider = scriptProvider();
   let text: string;
-  try {
-    text = await ask(client, system, prompt, [webSearchTool], signal);
-  } catch (err) {
-    console.warn(
-      "Explainer web search unavailable, using model knowledge:",
-      (err as Error).message,
+  if (provider === "claude") {
+    text = await viaClaude(system, prompt, signal);
+  } else if (provider === "gemini") {
+    text = await viaGemini(system, prompt, signal);
+  } else {
+    throw new Error(
+      "No script key set. Add ANTHROPIC_API_KEY (Claude) or GEMINI_API_KEY " +
+        "(free Gemini) to enable AI explainer mode.",
     );
-    text = await ask(client, system, prompt, undefined, signal);
   }
 
   const script = cleanScript(text);
@@ -63,6 +63,76 @@ export async function writeExplainerScript(
     throw new Error("The model returned an empty explainer script.");
   }
   return script;
+}
+
+/** Claude with server-side web search, falling back to model knowledge. */
+async function viaClaude(
+  system: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const client = new Anthropic({ apiKey: config.anthropicApiKey });
+  const webSearchTool = {
+    type: "web_search_20260209",
+    name: "web_search",
+    max_uses: 6,
+  } as unknown as Anthropic.Tool;
+  try {
+    return await ask(client, system, prompt, [webSearchTool], signal);
+  } catch (err) {
+    console.warn(
+      "Claude web search unavailable, using model knowledge:",
+      (err as Error).message,
+    );
+    return await ask(client, system, prompt, undefined, signal);
+  }
+}
+
+/**
+ * Google Gemini (free tier) with Search grounding, falling back to plain
+ * generation if the grounding tool is rejected. Raw REST — no SDK dependency.
+ */
+async function viaGemini(
+  system: string,
+  prompt: string,
+  signal?: AbortSignal,
+): Promise<string> {
+  const call = async (withSearch: boolean): Promise<string> => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.geminiModel}:generateContent?key=${config.geminiApiKey}`;
+    const body: Record<string, unknown> = {
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 4000, temperature: 0.7 },
+    };
+    if (withSearch) body.tools = [{ googleSearch: {} }];
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300);
+      throw new Error(`Gemini API error ${res.status}: ${detail}`);
+    }
+    const data = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const parts = data.candidates?.[0]?.content?.parts ?? [];
+    return parts.map((p) => p.text ?? "").join("").trim();
+  };
+
+  try {
+    return await call(true);
+  } catch (err) {
+    if ((err as Error).name === "AbortError") throw err;
+    console.warn(
+      "Gemini Search grounding failed, using model knowledge:",
+      (err as Error).message,
+    );
+    return await call(false);
+  }
 }
 
 /** One messages.create call; returns the concatenated text blocks. */

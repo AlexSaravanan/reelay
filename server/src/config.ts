@@ -17,6 +17,10 @@ export const config = {
   transcribeScript: path.join(repoRoot, "scripts", "transcribe.py"),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY ?? "",
   anthropicModel: process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5",
+  // Free alternative for the explainer script (Google Gemini, free tier with
+  // Search grounding). Used when there's no Anthropic key.
+  geminiApiKey: process.env.GEMINI_API_KEY ?? "",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
   ytdlpBin: process.env.YTDLP_BIN ?? "yt-dlp",
   ffmpegBin: process.env.FFMPEG_BIN ?? "ffmpeg",
   ffprobeBin: process.env.FFPROBE_BIN ?? "ffprobe",
