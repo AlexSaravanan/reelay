@@ -7,10 +7,17 @@ import { jobs } from "../jobs.js";
 import { probe } from "../pipeline/ffmpeg.js";
 import { renderClipRange } from "../pipeline/render.js";
 import { runJob } from "../pipeline/run.js";
-import type { AspectRatio, Job, JobOptions, VideoQuality } from "../types.js";
+import type {
+  AspectRatio,
+  Job,
+  JobMode,
+  JobOptions,
+  VideoQuality,
+} from "../types.js";
 
 const QUALITIES: VideoQuality[] = ["max", "1080", "720", "480"];
 const ASPECTS: AspectRatio[] = ["9:16", "4:3", "1:1", "16:9"];
+const MODES: JobMode[] = ["clips", "explainer"];
 
 export const jobsRouter = Router();
 
@@ -25,7 +32,11 @@ function parseOptions(body: Record<string, unknown>): JobOptions {
   const aspect = ASPECTS.includes(body.aspect as AspectRatio)
     ? (body.aspect as AspectRatio)
     : "9:16";
+  const mode = MODES.includes(body.mode as JobMode)
+    ? (body.mode as JobMode)
+    : "clips";
   return {
+    mode,
     clipCount: clamp(body.clipCount, 1, 12, 5),
     minDuration: clamp(body.minDuration, 5, 120, 20),
     maxDuration: clamp(body.maxDuration, 10, 180, 60),

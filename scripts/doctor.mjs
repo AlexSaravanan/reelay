@@ -45,6 +45,24 @@ if (existsSync(python)) {
   console.log("       run: scripts/setup-python.sh");
 }
 
+// Piper TTS + voice model (explainer mode).
+const piper = process.env.PIPER_BIN ?? path.join(root, ".venv", "bin", "piper");
+const voice =
+  process.env.PIPER_VOICE ??
+  path.join(root, "voices", "en_US-lessac-medium.onnx");
+if (existsSync(piper) && existsSync(voice)) {
+  console.log("  ok   piper (TTS)       voice: " + path.basename(voice));
+} else {
+  console.log("  MISS piper (TTS)       run: scripts/setup-python.sh");
+}
+
 console.log(
-  `\n  AI selector: ${process.env.ANTHROPIC_API_KEY ? "claude (key set)" : "heuristic (set ANTHROPIC_API_KEY for Claude)"}`,
+  `\n  AI selector:  ${process.env.ANTHROPIC_API_KEY ? "claude (key set)" : "heuristic (set ANTHROPIC_API_KEY for Claude)"}`,
+);
+console.log(
+  `  Explainer:    ${
+    process.env.ANTHROPIC_API_KEY && existsSync(piper) && existsSync(voice)
+      ? "ready"
+      : "needs ANTHROPIC_API_KEY + Piper voice"
+  }`,
 );

@@ -3,12 +3,14 @@ import type {
   Clip,
   Health,
   Job,
+  JobMode,
   JobStage,
   VideoQuality,
 } from "./types.ts";
 
 export interface CreateJobInput {
   url: string;
+  mode: JobMode;
   clipCount: number;
   minDuration: number;
   maxDuration: number;

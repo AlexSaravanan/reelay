@@ -2,3 +2,5 @@
 faster-whisper==1.2.1
 # faster-whisper 1.2.1 calls av.open(metadata_errors=...), removed in PyAV 14+.
 av>=11,<14
+# AI voiceover (explainer mode) — local, offline neural TTS.
+piper-tts==1.8.0

@@ -20,6 +20,13 @@ export const config = {
   ytdlpBin: process.env.YTDLP_BIN ?? "yt-dlp",
   ffmpegBin: process.env.FFMPEG_BIN ?? "ffmpeg",
   ffprobeBin: process.env.FFPROBE_BIN ?? "ffprobe",
+  // Piper TTS (AI voiceover for explainer mode).
+  piperBin: process.env.PIPER_BIN ?? path.join(repoRoot, ".venv", "bin", "piper"),
+  piperVoice:
+    process.env.PIPER_VOICE ??
+    path.join(repoRoot, "voices", "en_US-lessac-medium.onnx"),
+  /** Hard cap on explainer output length (seconds). */
+  explainerMaxSeconds: Number(process.env.EXPLAINER_MAX_SECONDS ?? 600),
 };
 
 export function jobDir(jobId: string): string {

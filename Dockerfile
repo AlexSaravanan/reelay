@@ -22,11 +22,15 @@ ENV HOME=/home/user \
 USER user
 WORKDIR /home/user/app
 
-# --- Python venv for transcription (faster-whisper + PyAV) ---
+# --- Python venv for transcription (faster-whisper) + TTS (piper-tts) ---
 COPY --chown=user:user scripts/requirements.txt scripts/requirements.txt
 RUN python3 -m venv .venv \
     && ./.venv/bin/pip install --no-cache-dir --upgrade pip \
     && ./.venv/bin/pip install --no-cache-dir -r scripts/requirements.txt
+
+# Piper voice model for explainer-mode AI voiceover.
+RUN ./.venv/bin/python -m piper.download_voices \
+      --download-dir voices en_US-lessac-medium
 
 # --- Node deps (all workspaces) ---
 COPY --chown=user:user package.json package-lock.json ./

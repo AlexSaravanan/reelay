@@ -68,6 +68,21 @@ npm run dev
 Paste a URL, tune the clip count and duration range, and watch the pipeline run
 live. Clips can be previewed and downloaded from the browser.
 
+## Two modes
+
+- **Clips** (default) — cut short, captioned vertical highlight clips.
+- **AI Explainer** — strip the original audio and dub an **AI voiceover** whose
+  script is **researched from the web** by Claude, then muxed back over the
+  (≤10 min) video. Pick it with the mode toggle in the form.
+
+  Explainer mode needs two things on the server:
+  - **`ANTHROPIC_API_KEY`** — Claude writes the script and runs the web search.
+  - **Piper voice** — the local, offline TTS voice, installed by
+    `scripts/setup-python.sh` (or baked into the Docker image). If the web
+    search tool isn't available, it falls back to Claude's own knowledge.
+
+  `npm run doctor` prints whether explainer mode is ready.
+
 ## Configuration
 
 See [.env.example](.env.example). Highlights:
@@ -78,6 +93,8 @@ See [.env.example](.env.example). Highlights:
 | `ANTHROPIC_API_KEY` | _(unset)_          | Enables Claude highlight selection        |
 | `ANTHROPIC_MODEL`   | `claude-opus-5-5`  | Model used when a key is set              |
 | `WORKSPACE_DIR`     | `./workspace`      | Where videos, transcripts and clips live  |
+| `PIPER_VOICE`       | `voices/en_US-lessac-medium.onnx` | AI voice for explainer mode |
+| `EXPLAINER_MAX_SECONDS` | `600`          | Hard cap on explainer output length        |
 
 ## Downloads blocked by YouTube
 

@@ -13,3 +13,6 @@ __pycache__/
 
 # TS incremental build cache
 *.tsbuildinfo
+
+# Piper voice models (downloaded by setup / Docker)
+voices/

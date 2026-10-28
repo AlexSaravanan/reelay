@@ -1,12 +1,15 @@
-import { jobDir } from "../config.js";
+import { config, jobDir } from "../config.js";
 import { jobs } from "../jobs.js";
 import type { Job } from "../types.js";
+import { writeExplainerScript } from "./explainer.js";
 import { probe } from "./ffmpeg.js";
 import { selectHighlights } from "./highlights.js";
 import { ingest } from "./ingest.js";
+import { narrateVideo } from "./narrate.js";
 import { CancelledError } from "./proc.js";
 import { renderClips } from "./render.js";
 import { transcribe } from "./transcribe.js";
+import { synthesize, ttsAvailable } from "./tts.js";
 
 /**
  * Full pipeline for one job. Each stage owns a slice of the 0-100 bar:
@@ -31,6 +34,13 @@ export async function runJob(job: Job): Promise<void> {
     job.source.title = title;
 
     const info = await probe(videoPath);
+
+    // Explainer mode: strip the audio and dub an AI voiceover instead of cutting
+    // clips. Separate, self-contained flow.
+    if (job.options.mode === "explainer") {
+      await runExplainer(job, dir, videoPath, info.duration, signal);
+      return;
+    }
 
     // 2. Transcribe ---------------------------------------------------------
     jobs.setStage(job.id, "transcribing", 20, "Transcribing audio…");
@@ -103,6 +113,62 @@ export async function runJob(job: Job): Promise<void> {
   } finally {
     jobs.releaseController(job.id);
   }
+}
+
+/**
+ * Explainer flow: write a web-researched script, voice it with Piper, and mux
+ * it over the (audio-stripped) video. Produces one clip. Progress uses the
+ * existing stages so the UI pills still make sense:
+ *   ingest 0-30 (already done) · script → "selecting" · voice+mux → "rendering".
+ */
+async function runExplainer(
+  job: Job,
+  dir: string,
+  videoPath: string,
+  videoDuration: number,
+  signal: AbortSignal,
+): Promise<void> {
+  if (!config.anthropicApiKey) {
+    throw new Error(
+      "AI explainer mode needs an ANTHROPIC_API_KEY (for the web-researched " +
+        "script). Set it and try again, or use clip mode.",
+    );
+  }
+  if (!ttsAvailable()) {
+    throw new Error(
+      "AI voice (Piper) is not installed. Run scripts/setup-python.sh to fetch " +
+        "the voice model.",
+    );
+  }
+
+  const targetSeconds = Math.min(
+    videoDuration || config.explainerMaxSeconds,
+    config.explainerMaxSeconds,
+  );
+
+  // 1. Script (web research) ------------------------------------------------
+  jobs.setStage(job.id, "selecting", 40, "Researching the topic and writing the script…");
+  const script = await writeExplainerScript(
+    job.source.title ?? "this video",
+    targetSeconds,
+    signal,
+  );
+
+  // 2. Voiceover ------------------------------------------------------------
+  jobs.setStage(job.id, "rendering", 60, "Generating the AI voiceover…");
+  const wav = `${dir}/narration.wav`;
+  await synthesize(script, wav, dir, signal);
+
+  // 3. Mux over the video ---------------------------------------------------
+  jobs.setStage(job.id, "rendering", 85, "Replacing audio and finishing the video…");
+  const clip = await narrateVideo(videoPath, wav, dir, job.source.title ?? "Explainer", signal);
+
+  jobs.update(job.id, {
+    stage: "done",
+    progress: 100,
+    message: "Done — AI explainer ready.",
+    clips: [clip],
+  });
 }
 
 /** Map a 0-100 stage-local percent into a global [lo, hi] slice. */

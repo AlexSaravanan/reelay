@@ -50,7 +50,17 @@ export type VideoQuality = "max" | "1080" | "720" | "480";
 /** Output frame aspect ratio. */
 export type AspectRatio = "9:16" | "4:3" | "1:1" | "16:9";
 
+/**
+ * What to make from the source:
+ *  - "clips": the default — short captioned highlight clips.
+ *  - "explainer": strip the original audio and replace it with an AI voiceover
+ *    whose script is researched from the web (needs ANTHROPIC_API_KEY + Piper).
+ */
+export type JobMode = "clips" | "explainer";
+
 export interface JobOptions {
+  /** What to produce from the source. */
+  mode: JobMode;
   /** Target number of clips to produce. */
   clipCount: number;
   /** Min/max clip length in seconds. */

@@ -110,7 +110,11 @@ export function App() {
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[360px_1fr]">
         <div className="space-y-4">
-          <NewJobForm onSubmit={handleSubmit} busy={busy} />
+          <NewJobForm
+            onSubmit={handleSubmit}
+            busy={busy}
+            explainerReady={Boolean(health?.explainer)}
+          />
           {error && (
             <p className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
               {error}
