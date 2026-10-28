@@ -20,7 +20,8 @@ export const config = {
   // Free alternative for the explainer script (Google Gemini, free tier with
   // Search grounding). Used when there's no Anthropic key.
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+  // "…-latest" alias stays current; pinned versions 404 for newer free keys.
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-flash-latest",
   ytdlpBin: process.env.YTDLP_BIN ?? "yt-dlp",
   ffmpegBin: process.env.FFMPEG_BIN ?? "ffmpeg",
   ffprobeBin: process.env.FFPROBE_BIN ?? "ffprobe",
