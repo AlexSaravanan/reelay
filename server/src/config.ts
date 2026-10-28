@@ -1,10 +1,14 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // server/src -> repo root is two levels up from dist/ or src/.
 const repoRoot = path.resolve(__dirname, "..", "..");
+
+// Load .env from the repo root explicitly — `dotenv/config` resolves relative to
+// the CWD, which in dev (`npm run dev`) is server/, so the root .env is missed.
+dotenv.config({ path: path.join(repoRoot, ".env") });
 
 export const config = {
   port: Number(process.env.PORT ?? 5174),
